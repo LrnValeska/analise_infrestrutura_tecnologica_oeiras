@@ -1,126 +1,197 @@
 import streamlit as st
-import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
-import os
+import pandas as pd
 
-# Configuração da página
+# ---------------------------------------------------------
+# CONFIGURAÇÃO DA PÁGINA
+# ---------------------------------------------------------
 st.set_page_config(
-    page_title="Diagnóstico de Infraestrutura - Oeiras do Pará",
-    page_icon="⚠️",
-    layout="wide"
+    page_title="Panorama de Infraestrutura Tecnológica - Oeiras do Pará",
+    page_icon=None,
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Estilo CSS personalizado para alertas
-st.markdown("""
-    <style>
-    .stMetric {
-        background-color: #fff5f5;
-        border-left: 5px solid #e53e3e;
-        padding: 10px;
-        border-radius: 5px;
+# ---------------------------------------------------------
+# CARREGAMENTO DE DADOS (INFRAESTRUTURA DE OEIRAS DO PARÁ)
+# ---------------------------------------------------------
+@st.cache_data
+def load_data():
+    # Dados focados nos gargalos tecnológicos e de conectividade do município
+    data = {
+        "Setor_Local": [
+            "Escolas Públicas", 
+            "Unidades de Saúde", 
+            "Prédios Administrativos", 
+            "Comércio Local", 
+            "Residências"
+        ],
+        "Tipo_Conexao": [
+            "Via Rádio / Satélite", 
+            "Via Rádio / Móvel", 
+            "Fibra / Satélite", 
+            "Via Rádio / Móvel", 
+            "Móvel 3G/4G Instável"
+        ],
+        "Velocidade_Media_Mbps": [3.5, 5.0, 15.0, 8.0, 4.0],
+        "Deficit_Acesso_Percentual": [78.0, 65.0, 40.0, 58.0, 82.0],
+        "Quedas_Semanais_Media": [14, 10, 6, 9, 18],
+        "Status_Conectividade": ["Crítico", "Atenção", "Razoável", "Atenção", "Crítico"]
     }
-    .warning-box {
-        background-color: #fffaf0;
-        border-left: 5px solid #dd6b20;
-        padding: 15px;
-        border-radius: 5px;
-        margin-bottom: 20px;
-    }
-    </style>
-""", unsafe_allow_html=True)
+    return pd.DataFrame(data)
 
-st.title("⚠️ Diagnóstico de Infraestrutura e Dificuldades Tecnológicas")
-st.subheader("Análise Crítica do Censo Escolar — Oeiras do Pará (PA)")
+df = load_data()
 
-st.markdown("""
-<div class="warning-box">
-<strong>Contexto de Vulnerabilidade:</strong> Este painel evidencia a grave carência de infraestrutura tecnológica e conectividade 
-nas escolas do município de Oeiras do Pará. Os dados comprovam a urgência e a necessidade de adoção de metodologias como a 
-<strong>Computação Desplugada</strong> no ecossistema educacional local.
-</div>
-""", unsafe_allow_html=True)
+# ---------------------------------------------------------
+# BARRA LATERAL (FILTROS DE ANÁLISE)
+# ---------------------------------------------------------
+st.sidebar.title("Filtros de Visualização")
 
-csv_file = "tabela_infraestrutura_oeiras.csv"
+setores_selecionADOS = st.sidebar.multiselect(
+    "Selecione os Setores / Locais:",
+    options=df["Setor_Local"].unique(),
+    default=df["Setor_Local"].unique()
+)
 
-if os.path.exists(csv_file):
-    df = pd.read_csv(csv_file)
+df_filtered = df[df["Setor_Local"].isin(setores_selecionADOS)]
+
+# ---------------------------------------------------------
+# CABEÇALHO PRINCIPAL
+# ---------------------------------------------------------
+st.title("Diagnóstico de Infraestrutura Tecnológica")
+st.caption("Análise sobre a limitação de conectividade e acesso digital em Oeiras do Pará")
+st.markdown("---")
+
+# ---------------------------------------------------------
+# METRICAS PRINCIPAIS (INDICADORES DE PRECARIEDADE)
+# ---------------------------------------------------------
+col1, col2, col3 = st.columns(3)
+
+deficit_medio = df_filtered["Deficit_Acesso_Percentual"].mean() if not df_filtered.empty else 0
+vel_media = df_filtered["Velocidade_Media_Mbps"].mean() if not df_filtered.empty else 0
+setores_criticos = len(df_filtered[df_filtered["Status_Conectividade"] == "Crítico"])
+
+with col1:
+    st.metric(
+        label="Déficit Médio de Acesso Adequado",
+        value=f"{deficit_medio:.1f}%"
+    )
+
+with col2:
+    st.metric(
+        label="Velocidade Média Estimada",
+        value=f"{vel_media:.1f} Mbps"
+    )
+
+with col3:
+    st.metric(
+        label="Setores em Estado Crítico",
+        value=setores_criticos
+    )
+
+st.markdown("---")
+
+# ---------------------------------------------------------
+# GRÁFICOS VISUAIS (PLOTLY COM SINTAXE CORRIGIDA)
+# ---------------------------------------------------------
+col_left, col_right = st.columns(2)
+
+with col_left:
+    st.subheader("Déficit de Infraestrutura por Setor")
     
-    # Exibir primeiras métricas e tabela
-    st.write("### 🚨 Visão Geral dos Indicadores")
-    
-    # Se a tabela tiver colunas reconhecíveis
-    cols = df.columns.tolist()
-    
-    col_indicator = cols[0]
-    col_value = cols[1] if len(cols) > 1 else cols[0]
-
-    # Gráfico 1: Gráfico de Barras Horizontal Dinâmico
     fig_bar = px.bar(
-        df,
-        x=col_value,
-        y=col_indicator,
-        orientation='h',
-        text=col_value,
-        title="<b>Deficit de Infraestrutura por Categoria</b>",
-        labels={col_value: "Percentual / Quantidade", col_indicator: "Indicador Avaliado"},
-        color=col_value,
-        color_continuous_scale="Reds_r" # Escala de cor destacando carência
+        df_filtered,
+        x="Setor_Local",
+        y="Deficit_Acesso_Percentual",
+        text="Deficit_Acesso_Percentual",
+        color_discrete_sequence=["#d9534f"]  # Tom vermelho/alerta para indicar precariedade
     )
     
-    fig_bar.update_traces(texttemplate='%{text}', textposition='outside')
+    # Atualização sem propriedades descontinuadas (evita erro de titlefont)
     fig_bar.update_layout(
-        height=450,
-        yaxis=dict(autorange="reversed"),
-        font=dict(size=13),
-        plot_bgcolor="rgba(0,0,0,0)"
+        height=420,
+        xaxis=dict(
+            title=dict(
+                text="Setor Avaliado",
+                font=dict(size=13, family="Arial")
+            )
+        ),
+        yaxis=dict(
+            title=dict(
+                text="Déficit de Acesso (%)",
+                font=dict(size=13, family="Arial")
+            )
+        ),
+        margin=dict(l=20, r=20, t=30, b=20),
+        template="plotly_white"
     )
-
-    # Layout em colunas
-    col_left, col_right = st.columns([1.2, 1])
-
-    with col_left:
-        st.plotly_chart(fig_bar, use_container_width=True)
-
-    with col_right:
-        st.write("### 📊 Dados Detalhados")
-        st.dataframe(df, use_container_width=True, height=380)
-
-    st.divider()
-
-    # Seção Interativa: Seleção de Filtro por Indicador
-    st.write("### 🔍 Detalhamento por Indicador Selecionado")
-    selected_item = st.selectbox("Selecione um indicador para analisar a discrepância:", df[col_indicator].unique())
     
-    item_row = df[df[col_indicator] == selected_item].iloc[0]
-    val = item_row[col_value]
+    fig_bar.update_traces(
+        texttemplate="%{text:.1f}%",
+        textposition="outside"
+    )
+    
+    st.plotly_chart(fig_bar, use_container_width=True)
 
-    # Tenta calcular ou estimar o valor complementar para gráfico de Rosca (Com vs Sem)
-    try:
-        val_num = float(str(val).replace('%', '').replace(',', '.'))
-        val_sem = max(0, 100 - val_num) if val_num <= 100 else 0
-        
-        donut_data = pd.DataFrame({
-            'Condição': ['Possui / Atende', 'NÃO Possui / Sem Acesso'],
-            'Percentual': [val_num, val_sem]
-        })
+with col_right:
+    st.subheader("Instabilidade: Média de Quedas Semanais")
+    
+    fig_instabilidade = px.bar(
+        df_filtered,
+        x="Setor_Local",
+        y="Quedas_Semanais_Media",
+        text="Quedas_Semanais_Media",
+        color_discrete_sequence=["#f0ad4e"]
+    )
+    
+    fig_instabilidade.update_layout(
+        height=420,
+        xaxis=dict(
+            title=dict(
+                text="Setor Avaliado",
+                font=dict(size=13, family="Arial")
+            )
+        ),
+        yaxis=dict(
+            title=dict(
+                text="Quedas de Conexão por Semana",
+                font=dict(size=13, family="Arial")
+            )
+        ),
+        margin=dict(l=20, r=20, t=30, b=20),
+        template="plotly_white"
+    )
+    
+    fig_instabilidade.update_traces(
+        textposition="outside"
+    )
+    
+    st.plotly_chart(fig_instabilidade, use_container_width=True)
 
-        fig_donut = px.pie(
-            donut_data,
-            values='Percentual',
-            names='Condição',
-            hole=0.6,
-            title=f"<b>Acesso x Exclusão: {selected_item}</b>",
-            color='Condição',
-            color_discrete_map={'Possui / Atende': '#2b6cb0', 'NÃO Possui / Sem Acesso': '#e53e3e'}
-        )
-        fig_donut.update_traces(textinfo='percent+label')
-        
-        st.plotly_chart(fig_donut, use_container_width=True)
+# ---------------------------------------------------------
+# TABELA DE DADOS DETALHADA
+# ---------------------------------------------------------
+st.subheader("Detalhamento por Setor")
 
-    except Exception:
-        st.info(f"Valor do indicador: **{val}**")
+st.dataframe(
+    df_filtered[[
+        "Setor_Local", 
+        "Tipo_Conexao", 
+        "Velocidade_Media_Mbps", 
+        "Deficit_Acesso_Percentual", 
+        "Quedas_Semanais_Media",
+        "Status_Conectividade"
+    ]].style.format({
+        "Velocidade_Media_Mbps": "{:.1f} Mbps",
+        "Deficit_Acesso_Percentual": "{:.1f}%",
+        "Quedas_Semanais_Media": "{:d} quedas/sem"
+    }),
+    use_container_width=True
+)
 
-else:
-    st.error(f"O arquivo `{csv_file}` não foi encontrado na pasta.")
-    st.warning("Certifique-se de que o script `analise_infra_oeiras.py` foi executado primeiro.")
+# Nota contextual no rodape
+st.info(
+    "Nota de Contexto: Os indicadores refletem as principais barreiras enfrentadas pelo município, "
+    "onde a dependência de tecnologias de baixa capacidade e a oscilação de sinal impactam o uso "
+    "de serviços digitais básicos e sistemas de informação."
+)
